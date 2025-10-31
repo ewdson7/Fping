@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>FPing Exporter - Gerenciar Targets</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+  <div class="max-w-2xl mx-auto mt-12 p-6 bg-gray-800 rounded-xl shadow-lg">
+    <h1 class="text-2xl font-bold mb-6 text-center">🎯 FPing Exporter - Targets</h1>
+    <div class="flex mb-4">
+      <input id="newTarget" placeholder="ex: 8.8.8.8" class="flex-grow p-2 rounded-l bg-gray-700 border border-gray-600" />
+      <button onclick="addTarget()" class="px-4 bg-green-600 hover:bg-green-700 rounded-r">Adicionar</button>
+    </div>
+    <ul id="targetList" class="space-y-2"></ul>
+  </div>
+
+  <script>
+    async function loadTargets() {
+      const res = await fetch('/targets');
+      const data = await res.json();
+      const list = document.getElementById('targetList');
+      list.innerHTML = '';
+      data.targets.forEach(t => {
+        const li = document.createElement('li');
+        li.className = 'flex justify-between bg-gray-700 p-2 rounded';
+        li.innerHTML = `
+          <span>${t}</span>
+          <div>
+            <button onclick="editTarget('${t}')" class="text-yellow-400 mx-1">Editar</button>
+            <button onclick="deleteTarget('${t}')" class="text-red-400 mx-1">Remover</button>
+          </div>`;
+        list.appendChild(li);
+      });
+    }
+
+    async function addTarget() {
+      const addr = document.getElementById('newTarget').value.trim();
+      if (!addr) return alert("Informe um IP ou hostname!");
+      const res = await fetch('/targets', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({address: addr})
+      });
+      if (res.ok) {
+        document.getElementById('newTarget').value = '';
+        loadTargets();
+      } else {
+        alert((await res.json()).detail || 'Erro ao adicionar alvo.');
+      }
+    }
+
+    async function deleteTarget(addr) {
+      if (!confirm(`Remover ${addr}?`)) return;
+      await fetch(`/targets/${addr}`, { method: 'DELETE' });
+      loadTargets();
+    }
+
+    async function editTarget(oldAddr) {
+      const newAddr = prompt("Novo endereço para " + oldAddr, oldAddr);
+      if (!newAddr || newAddr === oldAddr) return;
+      await fetch(`/targets/${oldAddr}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({address: newAddr})
+      });
+      loadTargets();
+    }
+
+    loadTargets();
+  </script>
+</body>
+</html>
