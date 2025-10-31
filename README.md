@@ -1,176 +1,207 @@
-# 🛰️ fping_exporter — Exportador de métricas de latência e perda de pacotes para Prometheus
+# 🎯 FPing Exporter com Interface Web
 
-Este projeto é um **exportador Prometheus** simples escrito em Python, que executa o comando [`fping`](https://fping.org/) periodicamente contra múltiplos destinos e expõe as métricas de **latência, perda de pacotes, pacotes enviados e recebidos** em um endpoint HTTP, pronto para ser coletado pelo Prometheus.
+Um **exporter leve e simples** que executa *pings ICMP (fping)* para
+múltiplos destinos, exporta métricas no formato do **Prometheus** e
+oferece uma **interface web** para gerenciar os alvos (CRUD).
 
----
+------------------------------------------------------------------------
 
-## 🚀 Funcionalidades
+## 🚀 Visão Geral
 
-- Mede latência mínima, média e máxima (min/avg/max)
-- Mede perda de pacotes (%)
-- Mede pacotes enviados e recebidos
-- Exporta as métricas no formato Prometheus
-- Log detalhado de execução (`/tmp/fping_exporter.log`)
-- Configuração simples por lista de alvos no código
+Este projeto permite: - Monitorar **latência** e **perda de pacotes** de
+múltiplos hosts via `fping`. - Exportar métricas compatíveis com
+**Prometheus**. - Adicionar, editar e remover *targets* dinamicamente
+via **API REST** ou **interface web** (estática). - Integrar facilmente
+com **Grafana** para visualizações.
 
----
+------------------------------------------------------------------------
 
-## 📋 Pré-requisitos
+## 🧩 Funcionalidades
 
-Antes de rodar o script, você precisa ter:
+✅ Coleta automática de métricas ICMP com `fping`\
+✅ Métricas no formato Prometheus (`/metrics`)\
+✅ Interface web moderna em TailwindCSS\
+✅ API REST completa (CRUD) para gerenciamento de targets\
+✅ Atualização dinâmica da lista de alvos sem reiniciar o processo\
+✅ Exclusão de métricas de targets removidos
 
-- **Python 3.6+**
-- **fping** instalado  
-  (No Ubuntu/Debian, você pode instalar com:)
-  ```bash
-  sudo apt install fping
-  ```
-- Biblioteca Python `prometheus_client`:
-  ```bash
-  pip install prometheus_client
-  ```
+------------------------------------------------------------------------
 
----
+## 🛠️ Requisitos
 
-## ⚙️ Instalação
+-   Python 3.8+
+-   fping instalado no sistema (`sudo apt install fping`)
+-   Dependências Python (instaladas via
+    `pip install -r requirements.txt`)
 
-Clone este repositório:
+------------------------------------------------------------------------
 
-```bash
-git clone https://github.com/seu-usuario/fping_exporter.git
-cd fping_exporter
+## 📦 Instalação
+
+``` bash
+# Clone o repositório
+git clone https://github.com/seu-usuario/fping-exporter.git
+cd fping-exporter
+
+# Instale as dependências
+pip install -r requirements.txt
 ```
 
-Dê permissão de execução ao script:
+> 💡 Caso ainda não tenha um `requirements.txt`, utilize este conteúdo:
+>
+> ``` text
+> fastapi
+> uvicorn
+> prometheus_client
+> numpy
+> ```
 
-```bash
-chmod +x fping_exporter.py
-```
+------------------------------------------------------------------------
 
----
+## ⚙️ Configuração
 
-## 🧠 Configuração
+Os principais parâmetros estão definidos no início do arquivo
+`fping.py`:
 
-Dentro do arquivo `fping_exporter.py`, você pode definir os alvos a serem monitorados:
+  --------------------------------------------------------------------------
+  Variável                 Descrição                  Padrão
+  ------------------------ -------------------------- ----------------------
+  `FPING_PATH`             Caminho do binário `fping` `/usr/bin/fping`
 
-```python
-TARGETS = ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
-```
+  `COLLECTION_INTERVAL`    Intervalo entre coletas    `20`
+                           (segundos)                 
 
-Você pode adicionar quantos IPs ou hostnames desejar.
+  `FPING_COUNT`            Número de pacotes enviados `20`
+                           por coleta                 
 
----
+  `FPING_PKT_TIMEOUT`      Timeout de cada pacote     `500`
+                           (ms)                       
+
+  `EXPORTER_PORT`          Porta de métricas          `8000`
+                           Prometheus                 
+
+  `API_PORT`               Porta da interface web/API `8080`
+
+  `TARGETS_FILE`           Caminho do arquivo JSON de `fping_targets.json`
+                           alvos                      
+  --------------------------------------------------------------------------
+
+------------------------------------------------------------------------
 
 ## ▶️ Execução
 
-Inicie o exportador com:
-
-```bash
-./fping_exporter.py
+``` bash
+python3 fping.py
 ```
 
-Por padrão, ele inicia um servidor HTTP local na porta **8000** e expõe as métricas no endpoint:
+Isso iniciará: - o **Prometheus exporter** em
+`http://localhost:8000/metrics` - a **interface web** e **API REST** em
+`http://localhost:8080/`
 
-👉 [http://localhost:8000/metrics](http://localhost:8000/metrics)
+------------------------------------------------------------------------
 
-Exemplo de saída:
-```
-# HELP fping_latency Latency in ms
-# TYPE fping_latency gauge
-fping_latency{target="8.8.8.8",type="avg"} 12.4
-fping_latency{target="8.8.8.8",type="min"} 10.3
-fping_latency{target="8.8.8.8",type="max"} 15.2
-fping_loss{target="8.8.8.8"} 0.0
-```
+## 🌐 Interface Web
 
-Os logs são salvos em `/tmp/fping_exporter.log`.
+Acesse no navegador:
 
----
+    http://localhost:8080/
+
+A interface permite: - Adicionar novos alvos (IP ou hostname) - Editar
+endereços existentes - Remover alvos e limpar métricas associadas
+
+Os alvos são persistidos no arquivo `fping_targets.json`.
+
+------------------------------------------------------------------------
+
+## 📡 Endpoints da API
+
+  ---------------------------------------------------------------------------
+  Método             Endpoint                   Descrição
+  ------------------ -------------------------- -----------------------------
+  `GET`              `/targets`                 Lista todos os targets
+
+  `POST`             `/targets`                 Adiciona um novo target
+                                                (JSON:
+                                                `{ "address": "8.8.8.8" }`)
+
+  `PUT`              `/targets/{old}`           Atualiza o endereço de um
+                                                target
+
+  `DELETE`           `/targets/{addr}`          Remove um target e apaga suas
+                                                métricas
+
+  `GET`              `/`                        Página inicial (interface
+                                                web)
+  ---------------------------------------------------------------------------
+
+------------------------------------------------------------------------
 
 ## 📊 Integração com Prometheus
 
-Adicione o job no seu `prometheus.yml`:
+Adicione o *job* ao seu `prometheus.yml`:
 
-```yaml
+``` yaml
 scrape_configs:
-  - job_name: "fping_exporter"
+  - job_name: 'fping_exporter'
     static_configs:
-      - targets: ["localhost:8000"]
+      - targets: ['localhost:8000']
 ```
 
-Reinicie o Prometheus e acesse o endpoint `/targets` para confirmar se o `fping_exporter` está sendo coletado corretamente.
+Métricas principais exportadas: - `fping_latency_ms{target,percentile}`\
+- `fping_packets_sent_total{target}`\
+- `fping_packets_received_total{target}`\
+- `fping_packets_lost_total{target}`\
+- `fping_loss_percent{target}`
 
----
+------------------------------------------------------------------------
 
-## 📈 Dashboard no Grafana (opcional)
+## 📈 Dashboard Grafana (sugestão)
 
-Você pode criar um painel no Grafana com gráficos como:
+Crie um painel com: - **Latência P50, P95 e P5** com *sombras* (bandas
+de variação) - **Perda de Pacotes (%)** com alerta visual
 
-- Latência média por destino (`fping_latency{type="avg"}`)
-- Perda de pacotes (`fping_loss`)
-- Pacotes enviados/recebidos (`fping_sent`, `fping_received`)
-- Tempo de execução de cada loop (`loop_duration_seconds`)
+Exemplo de query PromQL:
 
----
-
-## 🪵 Logs
-
-O script grava logs detalhados tanto na saída padrão quanto no arquivo:
-
-```
-/tmp/fping_exporter.log
+``` promql
+fping_loss_percent{target="8.8.8.8"}
 ```
 
-Esses logs ajudam na depuração e mostram os resultados de cada execução do `fping`.
+E para latência:
 
----
-
-## 🧩 Métricas exportadas
-
-| Métrica | Descrição | Labels |
-|----------|------------|--------|
-| `fping_latency` | Latência em milissegundos | `target`, `type` (`min`, `avg`, `max`) |
-| `fping_loss` | Perda de pacotes (%) | `target` |
-| `fping_sent` | Pacotes enviados | `target` |
-| `fping_received` | Pacotes recebidos | `target` |
-| `loop_duration_seconds` | Tempo total de uma iteração | *(sem labels)* |
-
----
-
-## 🧰 Execução em background (opcional)
-
-Para rodar como serviço no Linux:
-
-```bash
-nohup ./fping_exporter.py &
+``` promql
+fping_latency_ms{target="8.8.8.8", percentile="p50"}
 ```
 
-Ou crie um serviço systemd em `/etc/systemd/system/fping_exporter.service`:
+------------------------------------------------------------------------
 
-```ini
-[Unit]
-Description=Prometheus fping exporter
-After=network.target
+## 🧹 Persistência e Limpeza de Métricas
 
-[Service]
-ExecStart=/usr/bin/python3 /caminho/para/fping_exporter.py
-Restart=always
-User=nobody
+Ao remover um alvo via API ou interface: - O endereço é apagado de
+`fping_targets.json` - Todas as métricas associadas são **removidas
+dinamicamente** da memória
 
-[Install]
-WantedBy=multi-user.target
-```
+------------------------------------------------------------------------
 
----
+## 📁 Estrutura do Projeto
+
+    fping-exporter/
+    ├── fping.py              # Script principal (exporter + API)
+    ├── fping_targets.json    # Lista persistente de targets
+    ├── static/
+    │   └── index.html        # Interface web (CRUD)
+    └── requirements.txt      # Dependências Python
+
+------------------------------------------------------------------------
 
 ## 🧑‍💻 Autor
 
-**Ewdson Tiago**  
-📧 Contato: [ewdsontiago@gmail.com]  
-💻 GitHub: [https://github.com/ewdson7](https://github.com/ewdson7)
+**Ewdson Tiago**\
+💼 Projeto pessoal de monitoramento com Prometheus + FPing\
+📧 Contribuições e melhorias são bem-vindas!
 
----
+------------------------------------------------------------------------
 
-## 📜 Licença
+## 🪪 Licença
 
-Distribuído sob a licença **MIT**. Veja o arquivo `LICENSE` para mais informações.
+Distribuído sob a licença MIT.\
+Sinta-se à vontade para usar, modificar e contribuir!
