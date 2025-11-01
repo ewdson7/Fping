@@ -162,10 +162,44 @@ def list_targets():
 def add_target(target: Target):
     if target.address in TARGETS:
         raise HTTPException(status_code=400, detail="Alvo já existe")
+
     TARGETS.add(target.address)
     save_targets()
     logging.info(f"Alvo adicionado: {target.address}")
-    return {"message": "Alvo adicionado com sucesso", "targets": sorted(list(TARGETS))}
+
+    # 🟢 Força coleta imediata (sem esperar COLLECTION_INTERVAL)
+    try:
+        results = run_fping([target.address])
+        latencies = results.get(target.address)
+        sent = FPING_COUNT
+        if latencies and len(latencies) > 0:
+            arr = np.array(latencies, dtype=float)
+            for p, val in {"p95": 95, "p50": 50, "p5": 5}.items():
+                fping_latency_ms.labels(target=target.address, percentile=p).set(float(np.percentile(arr, val)))
+
+            recv = len(latencies)
+            loss = sent - recv
+            loss_percent = (loss / sent) * 100.0 if sent > 0 else 0.0
+            fping_loss_percent.labels(target=target.address).set(loss_percent)
+
+            fping_sent_total.labels(target=target.address).inc(sent)
+            fping_recv_total.labels(target=target.address).inc(recv)
+            if loss > 0:
+                fping_lost_total.labels(target=target.address).inc(loss)
+        else:
+            # Se não há amostras válidas
+            for p in ["p95", "p50", "p5"]:
+                fping_latency_ms.labels(target=target.address, percentile=p).set(0)
+            fping_loss_percent.labels(target=target.address).set(100.0)
+            fping_sent_total.labels(target=target.address).inc(sent)
+            fping_lost_total.labels(target=target.address).inc(sent)
+
+        logging.info(f"Coleta imediata concluída para {target.address}")
+    except Exception as e:
+        logging.exception(f"Erro ao coletar métricas iniciais para {target.address}: {e}")
+
+    return {"message": f"Alvo {target.address} adicionado e coletado imediatamente", "targets": sorted(list(TARGETS))}
+
 
 @app.delete("/targets/{address}")
 def delete_target(address: str):
